@@ -1,155 +1,64 @@
+# GCP Blockchain Node Sample Infrastructure
 
-# GCP to Local Home Network VPN Setup
+This project provides a Terraform (OpenTofu) configuration to set up a secure infrastructure on Google Cloud Platform suitable for running blockchain nodes. It establishes a dedicated VPC with a Site-to-Site VPN connection and provisions a customizable compute instance.
 
-This project uses OpenTofu (or Terraform) to configure a VPC and VPN on Google Cloud Platform (GCP), establishing a Site-to-Site VPN connection with a home server (e.g., Raspberry Pi).
+## Project Structure
 
-## Architecture Overview
-
-- **GCP Side**:
-  - **VPC Network**: `rpi-vpn-test-vpc`
-  - **Subnet**: `rpi-vpn-subnet` (`10.10.0.0/24`)
-  - **VPN Gateway**: Classic VPN Gateway
-  - **Firewall Rules**:
-    - Allow VPN and internal traffic (ICMP, TCP, UDP)
-    - Allow SSH access (for test VM)
-  - **Compute Engine**: `vpn-test-vm` (e2-micro instance for connection testing)
-
-- **Local Side (User Environment)**:
-  - Raspberry Pi (or home server) behind a router running a VPN daemon (e.g., StrongSwan, Libreswan)
-  - Port Forwarding required: UDP `500`, `4500` -> Raspberry Pi internal IP
+* vpc/: Contains networking resources including VPC, subnets, firewall rules, and VPN gateway.
+* vm/: Contains the compute instance configuration with customizable hardware specs (vCPU, RAM, Disk).
 
 ## Prerequisites
 
-1. **GCP Account & Project**: A billing-enabled GCP project is required.
-2. **OpenTofu/Terraform Installed**: Refer to the [OpenTofu Installation Guide](https://opentofu.org/docs/intro/install/).
-3. **GCP Authentication**: Authenticate locally via terminal.
-   ```bash
-   gcloud auth application-default login
-   ```
-4. **Check Home Public IP**: Identify your current public IP address.
+* Google Cloud Platform account and project
+* OpenTofu (or Terraform) installed
+* gcloud CLI installed and authenticated
 
 ## Usage
 
-### 1. Configure Variables (`terraform.tfvars`)
+### 1. Network Setup (VPC)
 
-Create a `terraform.tfvars` file in the project root and configure it according to your environment.
+Navigate to the vpc directory and configure your variables in terraform.tfvars.
 
 ```hcl
-project_id         = "YOUR_GCP_PROJECT_ID"
-home_public_ip     = "123.123.123.123"
-vpn_psk            = "your-secret-password"
-home_internal_cidr = "192.168.0.0/24"
-ssh_public_key     = "ssh-rsa AAA..."
+project_id             = "your-project-id"
+region                 = "us-central1"
+personal_public_ip     = "x.x.x.x"          # Your local network public IP
+personal_internal_cidr = "192.168.x.0/24"   # Your local network CIDR
+vpn_psk                = "your-secret-key"
 ```
 
-### 2. Initialize and Apply
+Initialize and apply the configuration:
 
 ```bash
-# Initialize
+cd vpc
 tofu init
-
-# Plan
-tofu plan
-
-# Apply
 tofu apply
 ```
 
-### 3. Check Results
+This will output the public IP of the GCP VPN Gateway (gcp_vpn_ip). Use this IP to configure your local VPN endpoint.
 
-Upon completion of `tofu apply`, the following information will be output:
+### 2. Node Setup (VM)
 
-- `gcp_vpn_ip`: The public IP of the GCP VPN Gateway (target for Raspberry Pi connection).
-- `vm_public_ip`: The public IP of the test VM.
+Navigate to the vm directory and configure your variables in terraform.tfvars.
 
-## Raspberry Pi Configuration Guide (StrongSwan with swanctl)
+```hcl
+project_id      = "your-project-id"
+region          = "us-central1"
+ssh_public_key  = "ssh-ed25519 ..."
+network_name    = "blockchain-vpc"    # Must match the VPC created above
+subnetwork_name = "blockchain-subnet" # Must match the Subnet created above
 
-This guide uses the modern `swanctl` (VICI protocol) provided by StrongSwan 6.x+.
+vm_name         = "blockchain-node-1"
+vm_vcpu         = 4
+vm_memory_mb    = 8192
+vm_disk_size_gb = 100
+vm_disk_type    = "pd-ssd"
+```
 
-1. **Install StrongSwan and Plugins**:
-   ```bash
-   sudo apt-get update
-   sudo apt-get install -y strongswan libcharon-extra-plugins libstrongswan-extra-plugins libstrongswan-standard-plugins strongswan-pki
-   ```
+Initialize and apply the configuration:
 
-2. **Configure `/etc/swanctl/swanctl.conf`**:
-   Replace the content of `/etc/swanctl/swanctl.conf` with the following configuration.
-   
-   > **Note**: Replace `YOUR_HOME_PUBLIC_IP`, `GCP_VPN_IP`, `YOUR_PSK`, and `HOME_CIDR` with your actual values.
-
-   ```conf
-   connections {
-      gcp-vpn {
-         remote_addrs = GCP_VPN_IP
-         
-         local {
-            auth = psk
-            id = YOUR_HOME_PUBLIC_IP
-         }
-         
-         remote {
-            auth = psk
-            id = GCP_VPN_IP
-         }
-         
-         children {
-            gcp-net {
-               local_ts = 192.168.0.0/24   # Your Home Network CIDR (e.g., 192.168.2.0/24)
-               remote_ts = 10.10.0.0/24    # GCP Network CIDR
-               
-               esp_proposals = aes256-sha1-modp2048
-               start_action = start
-            }
-         }
-         
-         version = 2
-         proposals = aes256-sha1-modp2048
-      }
-   }
-
-   secrets {
-      ike-gcp {
-         id = GCP_VPN_IP
-         secret = "YOUR_PSK"
-      }
-   }
-   ```
-
-3. **Apply & Start**:
-   ```bash
-   # Load configuration
-   sudo swanctl --load-all
-   
-   # Check status (should show ESTABLISHED)
-   sudo swanctl --list-sas
-   ```
-
-4. **Enable IP Forwarding**:
-   For the Raspberry Pi to act as a gateway and forward traffic to other devices, you must enable packet forwarding.
-   
-   Edit `/etc/sysctl.conf` and uncomment (or add) the following line:
-   ```conf
-   net.ipv4.ip_forward=1
-   ```
-   
-   Apply changes:
-   ```bash
-   sudo sysctl -p
-   ```
-
-- **Important**: Ensure UDP `500` and `4500` ports are port-forwarded to the Raspberry Pi's internal IP in your router settings.
-- **Routing Setup (Home Router)**: You must configure a **Static Route** on your home router so that other devices in your home network can reach the GCP network.
-   - **Destination Network**: `10.10.0.0`
-   - **Subnet Mask**: `255.255.255.0` (or `/24`)
-   - **Gateway**: The internal IP of your Raspberry Pi (e.g., `192.168.2.x`)
-   
-   Without this, only the Raspberry Pi itself can access the GCP network. Other devices (like your PC) won't know that traffic for `10.10.0.x` should go through the Raspberry Pi.
-
-## Connection Test
-
-1. Verify the tunnel status is "Established" in the [VPN](https://console.cloud.google.com/hybrid/vpn/gateways) menu of the GCP Console.
-2. SSH into the test VM (`vpn-test-vm`).
-3. Ping a device in the home internal network (e.g., Raspberry Pi).
-   ```bash
-   ping 192.168.0.x
-   ```
+```bash
+cd vm
+tofu init
+tofu apply
+```
