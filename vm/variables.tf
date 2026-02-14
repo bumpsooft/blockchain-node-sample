@@ -28,32 +28,8 @@ variable "subnetwork_name" {
   type        = string
 }
 
-variable "vm_name" {
-  description = "Name of the VM instance"
+variable "gnosis_node_name" {
+  description = "Name of the gnosis node"
   type        = string
-  default     = "vpn-personal-vm"
-}
-
-variable "vm_vcpu" {
-  description = "Number of vCPUs for the VM (must be even number >= 2)"
-  type        = number
-  default     = 2
-}
-
-variable "vm_memory_mb" {
-  description = "Amount of memory in MB for the VM (must be multiple of 256)"
-  type        = number
-  default     = 4096
-}
-
-variable "vm_disk_size_gb" {
-  description = "Size of the VM boot disk in GB"
-  type        = number
-  default     = 20
-}
-
-variable "vm_disk_type" {
-  description = "Type of the VM boot disk (e.g., pd-standard, pd-balanced, pd-ssd)"
-  type        = string
-  default     = "pd-balanced"
+  default     = "gnosis-node"
 }

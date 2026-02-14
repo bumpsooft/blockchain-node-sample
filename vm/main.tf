@@ -16,26 +16,51 @@ data "google_compute_zones" "available" {
   region = var.region
 }
 
-resource "google_compute_instance" "node_vm" {
-  name         = var.vm_name
-  machine_type = "e2-custom-${var.vm_vcpu}-${var.vm_memory_mb}"
+resource "google_compute_address" "gnosis_node_ip" {
+  name   = "${var.gnosis_node_name}-ip"
+  region = var.region
+}
+
+resource "google_compute_instance" "gnosis-node" {
+  name         = var.gnosis_node_name
+  machine_type = "e2-standard-4"
   zone         = data.google_compute_zones.available.names[0]
+  tags         = ["gnosis-node"]
 
   boot_disk {
     initialize_params {
       image = "debian-cloud/debian-13"
-      size  = var.vm_disk_size_gb
-      type  = var.vm_disk_type
+      size  = 1000
+      type  = "pd-ssd"
     }
   }
 
   network_interface {
     subnetwork = data.google_compute_subnetwork.subnet.id
     access_config {
+      nat_ip = google_compute_address.gnosis_node_ip.address
     }
   }
 
   metadata = {
     ssh-keys = "${var.ssh_user}:${var.ssh_public_key}"
   }
+}
+
+resource "google_compute_firewall" "gnosis_node_rules" {
+  name    = "gnosis-node-firewall"
+  network = data.google_compute_network.vpc.name
+
+  allow {
+    protocol = "tcp"
+    ports    = ["30303", "9000"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["30303", "9000"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["gnosis-node"]
 }
