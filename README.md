@@ -37,23 +37,24 @@ tofu apply
 
 This will output the public IP of the GCP VPN Gateway (gcp_vpn_ip). Use this IP to configure your local VPN endpoint.
 
-### 2. Node Setup (VM)
+### 2. Node Setup (Gnosis Node)
 
 Navigate to the vm directory and configure your variables in terraform.tfvars.
 
 ```hcl
-project_id      = "your-project-id"
-region          = "us-central1"
-ssh_public_key  = "ssh-ed25519 ..."
-network_name    = "blockchain-vpc"    # Must match the VPC created above
-subnetwork_name = "blockchain-subnet" # Must match the Subnet created above
+project_id       = "your-project-id"
+region           = "asia-northeast3"
+ssh_public_key   = "ssh-ed25519 ..."
+network_name     = "blockchain-vpc"    # Must match the VPC created above
+subnetwork_name  = "blockchain-subnet" # Must match the Subnet created above
 
-vm_name         = "blockchain-node-1"
-vm_vcpu         = 4
-vm_memory_mb    = 8192
-vm_disk_size_gb = 100
-vm_disk_type    = "pd-ssd"
+gnosis_node_name = "gnosis-node"
 ```
+
+The configuration is now optimized for a Gnosis node with:
+- **Machine Type**: e2-standard-4 (4 vCPU, 16 GB RAM)
+- **Storage**: 1000 GB PD-SSD
+- **Firewall**: Ports 30303 (TCP/UDP) and 9000 (TCP/UDP) are exposed for P2P networking and discovery.
 
 Initialize and apply the configuration:
 
