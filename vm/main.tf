@@ -21,6 +21,13 @@ resource "google_compute_address" "gnosis_node_ip" {
   region = var.region
 }
 
+resource "google_compute_address" "gnosis_node_internal_ip" {
+  name         = "${var.gnosis_node_name}-internal-ip"
+  subnetwork   = data.google_compute_subnetwork.subnet.id
+  address_type = "INTERNAL"
+  region       = var.region
+}
+
 resource "google_compute_instance" "gnosis-node" {
   name         = var.gnosis_node_name
   machine_type = "e2-standard-4"
@@ -37,6 +44,7 @@ resource "google_compute_instance" "gnosis-node" {
 
   network_interface {
     subnetwork = data.google_compute_subnetwork.subnet.id
+    network_ip = google_compute_address.gnosis_node_internal_ip.address
     access_config {
       nat_ip = google_compute_address.gnosis_node_ip.address
     }
